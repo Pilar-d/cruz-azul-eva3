@@ -28,9 +28,9 @@ const dbConfig = {
 const pool = new Pool(dbConfig);
 
 // API Route de prueba
-app.get('/api/pacientes', async (req, res) => {
+app.get('/api/productos', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM pacientes');
+        const result = await pool.query('SELECT * FROM productos');
         res.json(result.rows);
     } catch (err) {
         console.error(err);
