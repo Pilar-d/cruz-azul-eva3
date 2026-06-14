@@ -16,7 +16,7 @@ services:
 
   app:
     build:
-      context: ./frontend  # O './app' si le cambias el nombre
+      context: ./app
     container_name: cruz_azul_app
     ports:
       - "3000:3000"
