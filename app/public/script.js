@@ -1,98 +1,33 @@
-// Variable de estado para saber si el admin está logueado
-let esAdminLogueado = false;
-let idEdicionActual = null; // Guardará el ID del producto que estamos editando
+let productoEditandoId = null;
 
-// ==========================================
-// 1. NAVEGACIÓN Y ACCESO
-// ==========================================
-
-function abrirLogin() {
-    if (esAdminLogueado) {
-        mostrarSeccion('admin');
-    } else {
-        document.getElementById('modal-login').classList.remove('hidden');
-    }
+function mostrarSeccion(seccion) {
+    document.getElementById('sec-inicio').classList.add('hidden');
+    document.getElementById('sec-admin').classList.add('hidden');
+    document.getElementById(`sec-${seccion}`).classList.remove('hidden');
+    if(seccion === 'admin' && localStorage.getItem('token')) cargarProductos();
 }
+
+function abrirLogin() { document.getElementById('modal-login').classList.remove('hidden'); }
 
 function cerrarLogin() {
     document.getElementById('modal-login').classList.add('hidden');
+    volverCredenciales();
 }
 
-function mostrarSeccion(seccion) {
-    const inicio = document.getElementById('sec-inicio');
-    const admin = document.getElementById('sec-admin');
-
-    if(seccion === 'admin' && esAdminLogueado) {
-        inicio.classList.add('hidden');
-        admin.classList.remove('hidden');
-        cargarProductos();
-    } else {
-        inicio.classList.remove('hidden');
-        admin.classList.add('hidden');
-        cargarProductos(); 
-    }
+function volverCredenciales() {
+    document.getElementById('form-login-step2').classList.add('hidden');
+    document.getElementById('form-login-step1').classList.remove('hidden');
 }
 
-document.getElementById('form-login').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const user = document.getElementById('user').value;
-    const pass = document.getElementById('pass').value;
-
-    if(user === 'admin' && pass === 'cruzazul2026') {
-        esAdminLogueado = true;
-        cerrarLogin();
-        document.getElementById('btn-admin').textContent = "Mi Panel Admin";
-        document.getElementById('btn-logout').classList.remove('hidden');
-        mostrarSeccion('admin');
-    } else {
-        alert('Acceso denegado: Credenciales incorrectas');
-    }
-});
-
-function logout() {
-    esAdminLogueado = false;
-    location.reload();
-}
-
-// ==========================================
-// 2. GESTIÓN DE PRODUCTOS (CREAR, EDITAR, ELIMINAR)
-// ==========================================
-
-// --- CREAR ---
-function abrirModalAgregar() {
-    document.getElementById('modal-agregar').classList.remove('hidden');
-}
-
+function abrirModalAgregar() { document.getElementById('modal-agregar').classList.remove('hidden'); }
 function cerrarModalAgregar() {
     document.getElementById('modal-agregar').classList.add('hidden');
     document.getElementById('form-agregar').reset();
 }
 
-document.getElementById('form-agregar').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const nombre = document.getElementById('nuevo-nombre').value;
-    const precio = document.getElementById('nuevo-precio').value;
-    const stock = document.getElementById('nuevo-stock').value;
-
-    try {
-        const response = await fetch('/api/productos', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, precio, stock })
-        });
-        if (response.ok) {
-            cerrarModalAgregar();
-            cargarProductos();
-            alert('Producto añadido con éxito.');
-        }
-    } catch (error) {
-        alert('Error al conectar con el servidor.');
-    }
-});
-
-// --- EDITAR ---
+// <-- NUEVO: Cargar datos en el modal de edición
 function abrirModalEditar(id, nombre, precio, stock) {
-    idEdicionActual = id;
+    productoEditandoId = id;
     document.getElementById('editar-nombre').value = nombre;
     document.getElementById('editar-precio').value = precio;
     document.getElementById('editar-stock').value = stock;
@@ -102,109 +37,160 @@ function abrirModalEditar(id, nombre, precio, stock) {
 function cerrarModalEditar() {
     document.getElementById('modal-editar').classList.add('hidden');
     document.getElementById('form-editar').reset();
-    idEdicionActual = null;
+    productoEditandoId = null;
 }
 
+function obtenerCabeceras() {
+    return {
+        'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        'Content-Type': 'application/json'
+    };
+}
+
+// <-- MODIFICADO: Login Paso 1 (Llama al backend para enviar correo)
+async function mostrarMFA() {
+    const user = document.getElementById('user').value;
+    const pass = document.getElementById('pass').value;
+    
+    if (user && pass) {
+        try {
+            const response = await fetch('/login-step1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: user, password: pass })
+            });
+            
+            if (response.ok) {
+                document.getElementById('form-login-step1').classList.add('hidden');
+                document.getElementById('form-login-step2').classList.remove('hidden');
+                alert("Te hemos enviado un código de seguridad a tu correo.");
+            } else {
+                alert("Credenciales incorrectas.");
+            }
+        } catch (e) {
+            console.error("Error conectando al servidor");
+        }
+    }
+}
+
+// <-- MODIFICADO: Login Paso 2 (Verifica el PIN)
+async function ejecutarLoginMFA() {
+    const user = document.getElementById('user').value;
+    const mfa = document.getElementById('mfa-code').value;
+
+    try {
+        const response = await fetch('/login-step2', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: user, mfa: mfa })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            localStorage.setItem('token', data.token);
+            cerrarLogin();
+            mostrarSeccion('admin');
+            document.getElementById('btn-admin').classList.add('hidden');
+            document.getElementById('btn-logout').classList.remove('hidden');
+            cargarProductos();
+        } else {
+            alert(data.error || "Código MFA incorrecto.");
+        }
+    } catch (error) {
+        console.error('Error:', error);
+    }
+}
+
+function cerrarSesionSegura() {
+    localStorage.removeItem('token');
+    mostrarSeccion('inicio');
+    document.getElementById('btn-logout').classList.add('hidden');
+    document.getElementById('btn-admin').classList.remove('hidden');
+    document.getElementById('user').value = '';
+    document.getElementById('pass').value = '';
+    document.getElementById('mfa-code').value = '';
+}
+
+async function cargarProductos() {
+    try {
+        const response = await fetch('/productos', { headers: obtenerCabeceras() });
+        if (response.status === 401 || response.status === 403) return cerrarSesionSegura();
+        
+        const productos = await response.json();
+        const tbody = document.getElementById('lista-productos');
+        const catalogo = document.getElementById('catalogo-publico');
+        
+        tbody.innerHTML = ''; 
+        catalogo.innerHTML = ''; 
+
+        productos.forEach(prod => {
+            // <-- NUEVO: Agregado el botón "Editar" en la tabla
+            tbody.innerHTML += `
+                <tr class="border-b hover:bg-slate-50 transition">
+                    <td class="p-4 text-slate-500">${prod.id}</td>
+                    <td class="p-4 font-medium text-slate-800">${prod.nombre}</td>
+                    <td class="p-4 text-blue-700 font-semibold">$${prod.precio}</td>
+                    <td class="p-4">${prod.stock} un.</td>
+                    <td class="p-4 text-right">
+                        <button class="text-blue-600 hover:text-blue-800 font-semibold text-sm px-2 py-1 bg-blue-50 rounded-md mr-2" 
+                            onclick="abrirModalEditar(${prod.id}, '${prod.nombre}', ${prod.precio}, ${prod.stock})">Editar</button>
+                        <button class="text-red-600 hover:text-red-800 font-semibold text-sm px-2 py-1 bg-red-50 rounded-md" 
+                            onclick="eliminarProducto(${prod.id})">Eliminar</button>
+                    </td>
+                </tr>
+            `;
+
+            catalogo.innerHTML += `
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between">
+                    <div>
+                        <h3 class="font-bold text-lg text-slate-800 mb-1">${prod.nombre}</h3>
+                        <p class="text-slate-500 text-sm mb-3">Stock: ${prod.stock} unidades.</p>
+                    </div>
+                    <span class="text-2xl font-black text-blue-600">$${prod.precio}</span>
+                </div>
+            `;
+        });
+    } catch (e) { console.error(e); }
+}
+
+document.getElementById('form-agregar').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const nombre = document.getElementById('nuevo-nombre').value;
+    const precio = document.getElementById('nuevo-precio').value;
+    const stock = document.getElementById('nuevo-stock').value;
+    await fetch('/productos', { method: 'POST', headers: obtenerCabeceras(), body: JSON.stringify({ nombre, precio, stock }) });
+    cerrarModalAgregar();
+    cargarProductos();
+});
+
+// <-- NUEVO: Enviar los datos editados al backend (PUT)
 document.getElementById('form-editar').addEventListener('submit', async (e) => {
     e.preventDefault();
     const nombre = document.getElementById('editar-nombre').value;
     const precio = document.getElementById('editar-precio').value;
     const stock = document.getElementById('editar-stock').value;
-
-    try {
-        const response = await fetch(`/api/productos/${idEdicionActual}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre, precio, stock })
-        });
-
-        if (response.ok) {
-            cerrarModalEditar();
-            cargarProductos();
-            alert('Producto actualizado con éxito.');
-        } else {
-            alert('Error al actualizar el producto.');
-        }
-    } catch (error) {
-        alert('Error al conectar con el servidor.');
-    }
+    
+    await fetch(`/productos/${productoEditandoId}`, { 
+        method: 'PUT', 
+        headers: obtenerCabeceras(), 
+        body: JSON.stringify({ nombre, precio, stock }) 
+    });
+    
+    cerrarModalEditar();
+    cargarProductos();
 });
 
-// --- ELIMINAR ---
 async function eliminarProducto(id) {
-    // Pedimos confirmación antes de borrar
-    if (confirm('¿Estás seguro de que deseas eliminar este medicamento de la base de datos?')) {
-        try {
-            const response = await fetch(`/api/productos/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (response.ok) {
-                cargarProductos();
-                alert('Producto eliminado correctamente.');
-            } else {
-                alert('Error al eliminar el producto.');
-            }
-        } catch (error) {
-            alert('Error de conexión con el servidor.');
-        }
+    if (confirm("¿Eliminar este medicamento?")) {
+        await fetch(`/productos/${id}`, { method: 'DELETE', headers: obtenerCabeceras() });
+        cargarProductos();
     }
 }
 
-// ==========================================
-// 3. CARGA DINÁMICA DE DATOS (GET)
-// ==========================================
-
-async function cargarProductos() {
-    const listaAdmin = document.getElementById('lista-productos');
-    const catalogoPublico = document.getElementById('catalogo-publico');
-    
-    if (listaAdmin) listaAdmin.innerHTML = '<tr><td colspan="4" class="p-8 text-center text-slate-400">Consultando base de datos...</td></tr>';
-    
-    try {
-        const response = await fetch('/api/productos');
-        const productos = await response.json();
-        
-        if (listaAdmin) listaAdmin.innerHTML = '';
-        if (catalogoPublico) catalogoPublico.innerHTML = '';
-
-        productos.forEach(p => {
-            if (listaAdmin) {
-                // Aquí añadimos los botones funcionales de Editar y Eliminar usando el "p.id"
-                listaAdmin.innerHTML += `
-                    <tr class="border-b hover:bg-slate-50 transition">
-                        <td class="p-4 font-medium text-slate-800">${p.nombre}</td>
-                        <td class="p-4 text-blue-700 font-bold">$${p.precio}</td>
-                        <td class="p-4">
-                            <span class="px-2 py-1 ${p.stock < 10 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'} rounded-md text-xs font-bold">
-                                ${p.stock} uds
-                            </span>
-                        </td>
-                        <td class="p-4 text-right">
-                            <button onclick="abrirModalEditar(${p.id}, '${p.nombre}', ${p.precio}, ${p.stock})" class="text-blue-600 hover:text-blue-800 text-sm font-bold mr-3">Editar</button>
-                            <button onclick="eliminarProducto(${p.id})" class="text-red-500 hover:text-red-700 text-sm font-bold">Eliminar</button>
-                        </td>
-                    </tr>
-                `;
-            }
-
-            if (catalogoPublico) {
-                catalogoPublico.innerHTML += `
-                    <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 hover:shadow-lg transition-all transform hover:-translate-y-1">
-                        <div class="h-32 bg-slate-50 rounded-xl mb-4 flex items-center justify-center text-4xl">💊</div>
-                        <h3 class="font-bold text-slate-800 mb-1">${p.nombre}</h3>
-                        <p class="text-xs text-slate-500 mb-4">Disponible para entrega inmediata</p>
-                        <div class="flex justify-between items-center border-t pt-4">
-                            <span class="text-xl font-black text-blue-700">$${p.precio}</span>
-                            <button class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-700 transition">Añadir</button>
-                        </div>
-                    </div>
-                `;
-            }
-        });
-    } catch (error) {
-        console.error("Error al cargar productos:", error);
-    }
-}
-
-window.addEventListener('DOMContentLoaded', cargarProductos);
+document.addEventListener("DOMContentLoaded", () => {
+    // Almacenar las variables de los formularios globales para usarlas en JS
+    window.mostrarMFA = mostrarMFA;
+    window.ejecutarLoginMFA = ejecutarLoginMFA;
+    if(localStorage.getItem('token')) cargarProductos();
+});

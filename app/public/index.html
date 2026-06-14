@@ -19,7 +19,7 @@
             <div id="nav-links" class="flex gap-4">
                 <button onclick="mostrarSeccion('inicio')" class="text-slate-600 hover:text-blue-600 font-medium">Inicio</button>
                 <button id="btn-admin" onclick="abrirLogin()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition">Panel Admin</button>
-                <button id="btn-logout" onclick="logout()" class="hidden border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-50">Cerrar Sesión</button>
+                <button id="btn-logout" onclick="cerrarSesionSegura()" class="hidden border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-red-50 transition">Cerrar Sesión</button>
             </div>
         </div>
     </nav>
@@ -63,7 +63,7 @@
                     ← Volver al Inicio Público
                 </button>
                 <h2 class="text-3xl font-bold text-slate-800">Gestión de Inventario</h2>
-                <p class="text-slate-500">Panel administrativo interno</p>
+                <p class="text-slate-500">Panel administrativo interno (Protegido por JWT)</p>
             </div>
             <button onclick="abrirModalAgregar()" class="bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 shadow-lg shadow-green-200 transition">
                 + Agregar Producto
@@ -74,14 +74,14 @@
             <table class="w-full text-left">
                 <thead class="bg-slate-50 border-b">
                     <tr>
+                        <th class="p-4 font-semibold text-slate-600">ID</th>
                         <th class="p-4 font-semibold text-slate-600">Producto</th>
                         <th class="p-4 font-semibold text-slate-600">Precio</th>
                         <th class="p-4 font-semibold text-slate-600">Stock</th>
                         <th class="p-4 font-semibold text-slate-600 text-right">Acción</th>
                     </tr>
                 </thead>
-                <tbody id="lista-productos">
-                    </tbody>
+                <tbody id="lista-productos"></tbody>
             </table>
         </div>
     </section>
@@ -90,11 +90,20 @@
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl border border-slate-100">
             <h2 class="text-2xl font-bold mb-2 text-slate-800">Acceso Administrativo</h2>
             <p class="text-slate-500 mb-6 text-sm">Identifícate para gestionar los productos.</p>
-            <form id="form-login" class="space-y-4">
+            
+            <form id="form-login-step1" class="space-y-4" onsubmit="event.preventDefault(); mostrarMFA();">
                 <input type="text" id="user" placeholder="Usuario" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                 <input type="password" id="pass" placeholder="Contraseña" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
-                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Entrar al Sistema</button>
-                <button type="button" onclick="cerrarLogin()" class="w-full text-slate-400 text-sm mt-2 hover:text-slate-600">Cerrar</button>
+                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Siguiente</button>
+                <button type="button" onclick="cerrarLogin()" class="w-full text-slate-400 text-sm mt-2 hover:text-slate-600">Cancelar</button>
+            </form>
+
+            <form id="form-login-step2" class="space-y-4 hidden" onsubmit="event.preventDefault(); ejecutarLoginMFA();">
+                <label class="block text-sm font-semibold text-slate-700 text-center">Código de Seguridad (MFA)</label>
+                <input type="text" id="mfa-code" placeholder="PIN de 6 dígitos" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-center tracking-widest text-xl font-mono">
+                <p class="text-xs text-slate-400 text-center">PoC: Ingrese 123456</p>
+                <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition">Verificar y Entrar</button>
+                <button type="button" onclick="volverCredenciales()" class="w-full text-slate-400 text-sm mt-2 hover:text-slate-600">Volver</button>
             </form>
         </div>
     </div>
@@ -107,7 +116,7 @@
                 <input type="number" id="nuevo-precio" placeholder="Precio ($)" required class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none">
                 <input type="number" id="nuevo-stock" placeholder="Stock" required class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-green-500 outline-none">
                 <button type="submit" class="w-full bg-green-600 text-white py-3 rounded-xl font-bold hover:bg-green-700 transition">Guardar</button>
-                <button type="button" onclick="cerrarModalAgregar()" class="w-full text-slate-400 text-sm mt-2 hover:text-slate-600">Cancelar</button>
+                <button type="button" onclick="cerrarModalAgregar()" class="w-full text-slate-400 text-sm mt-2">Cancelar</button>
             </form>
         </div>
     </div>
@@ -116,15 +125,85 @@
         <div class="bg-white w-full max-w-md rounded-2xl p-8 shadow-2xl">
             <h2 class="text-2xl font-bold mb-2">Editar Medicamento</h2>
             <form id="form-editar" class="space-y-4 mt-4">
-                <input type="hidden" id="editar-id">
                 <input type="text" id="editar-nombre" placeholder="Nombre" required class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                 <input type="number" id="editar-precio" placeholder="Precio ($)" required class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                 <input type="number" id="editar-stock" placeholder="Stock" required class="w-full p-3 bg-slate-50 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
                 <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">Actualizar Producto</button>
-                <button type="button" onclick="cerrarModalEditar()" class="w-full text-slate-400 text-sm mt-2 hover:text-slate-600">Cancelar</button>
+                <button type="button" onclick="cerrarModalEditar()" class="w-full text-slate-400 text-sm mt-2">Cancelar</button>
             </form>
         </div>
     </div>
+
+    <script>
+        // Transición visual entre Paso 1 y Paso 2
+        function mostrarMFA() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            if (user && pass) {
+                document.getElementById('form-login-step1').classList.add('hidden');
+                document.getElementById('form-login-step2').classList.remove('hidden');
+            }
+        }
+
+        function volverCredenciales() {
+            document.getElementById('form-login-step2').classList.add('hidden');
+            document.getElementById('form-login-step1').classList.remove('hidden');
+        }
+
+        // Petición al backend con Fetch
+        async function ejecutarLoginMFA() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            const mfa = document.getElementById('mfa-code').value;
+
+            // PoC: Validación de código MFA
+            if(mfa !== '123456') {
+                alert("Código MFA incorrecto.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Guardar JWT
+                    localStorage.setItem('token', data.token);
+                    
+                    // Ajustar UI
+                    cerrarLogin();
+                    mostrarSeccion('admin');
+                    document.getElementById('btn-admin').classList.add('hidden');
+                    document.getElementById('btn-logout').classList.remove('hidden');
+                    
+                    // Disparar carga de productos (de tu script.js)
+                    if(typeof cargarProductos === 'function') {
+                        cargarProductos();
+                    }
+                } else {
+                    alert(data.error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function cerrarSesionSegura() {
+            localStorage.removeItem('token');
+            mostrarSeccion('inicio');
+            document.getElementById('btn-logout').classList.add('hidden');
+            document.getElementById('btn-admin').classList.remove('hidden');
+            volverCredenciales();
+            document.getElementById('user').value = '';
+            document.getElementById('pass').value = '';
+            document.getElementById('mfa-code').value = '';
+        }
+    </script>
 
     <script src="script.js"></script>
 </body>
