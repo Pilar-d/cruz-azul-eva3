@@ -1,33 +1,15 @@
 version: '3.8'
 
 services:
-  db:
-    build:
-      context: ./database
-    container_name: cruz_azul_db
-    environment:
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: adminpassword
-      POSTGRES_DB: cruz_azul
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
   app:
     build:
       context: ./app
     container_name: cruz_azul_app
     ports:
       - "3000:3000"
-    depends_on:
-      - db
     environment:
-      - DB_HOST=db
-      - DB_USER=admin
-      - DB_PASSWORD=adminpassword
-      - DB_NAME=cruz_azul
+      - DB_HOST=database-cruzazul.ciihvjvbtoq2.us-east-1.rds.amazonaws.com
+      - DB_USER=postgres_admin
+      - DB_PASSWORD=database-cruzAzul123
+      - DB_NAME=databaseCruzAzul
       - DB_PORT=5432
-
-volumes:
-  db_data:
