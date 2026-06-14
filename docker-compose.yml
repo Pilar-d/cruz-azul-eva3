@@ -2,14 +2,16 @@ version: '3.8'
 
 services:
   app:
-    build:
-      context: ./app
     container_name: cruz_azul_app
+    build: 
+      context: ./app
     ports:
       - "3000:3000"
+    volumes:
+      - ./app:/usr/src/app
     environment:
-      - DB_HOST=database-cruzazul.ciihvjvbtoq2.us-east-1.rds.amazonaws.com
-      - DB_USER=postgres_admin
-      - DB_PASSWORD=database-cruzAzul123
-      - DB_NAME=databaseCruzAzul
-      - DB_PORT=5432
+      - DB_HOST=${DB_HOST}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+    restart: always
