@@ -1,7 +1,7 @@
 const express = require('express');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer'); // <-- Nueva librería
+const nodemailer = require('nodemailer');
 
 const app = express();
 const port = 3000;
@@ -9,13 +9,25 @@ const port = 3000;
 app.use(express.json());
 app.use(express.static('public'));
 
+// 1. VALIDACIÓN DE VARIABLES DE ENTORNO
+if (!process.env.DB_HOST) {
+    console.error("ERROR CRÍTICO: La variable DB_HOST no está configurada.");
+}
+
 const pool = new Pool({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
+    host: process.env.DB_HOST || 'database-cruzazul.ciihvjvbtoq2.us-east-1.rds.amazonaws.com',
+    user: process.env.DB_USER || 'postgres_admin',
+    password: process.env.DB_PASSWORD || 'CruzAzul2026',
+    database: process.env.DB_NAME || 'databaseCruzAzul',
+    port: parseInt(process.env.DB_PORT) || 5432,
     ssl: { rejectUnauthorized: false }
+});
+
+// Prueba la conexión al arrancar
+pool.connect((err, client, done) => {
+    if (err) return console.error('Error al conectar a RDS:', err.stack);
+    console.log('Conexión exitosa a AWS RDS PostgreSQL');
+    done();
 });
 
 const SECRET_KEY = 'CruzAzul_MFA_Token_2026';
@@ -26,48 +38,40 @@ const SECRET_KEY = 'CruzAzul_MFA_Token_2026';
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
-        user: 'pilar.a2a0@gmail.com', // <-- PON TU CORREO ACÁ
-        pass: 'mfhx plaj lpov byrt' // <-- MÁS ABAJO TE EXPLICO ESTA CLAVE
+        user: 'pilar.a2a0@gmail.com',
+        pass: 'mfhx plaj lpov byrt'
     }
 });
 
-// Almacén temporal en memoria para el código de seguridad
-let mfaStore = {}; 
+let mfaStore = {};
 
-// Paso 1: Validar credenciales y enviar correo
 app.post('/login-step1', async (req, res) => {
     const { username, password } = req.body;
-    
     if (username === 'admin' && password === 'admin123') {
-        // Generar PIN aleatorio de 6 dígitos
         const codigoMFA = Math.floor(100000 + Math.random() * 900000).toString();
         mfaStore[username] = codigoMFA;
-        
-        console.log(`[MFA] Código generado para ${username}: ${codigoMFA}`); // Respaldo en consola
-
+        console.log(`[MFA] Código generado para ${username}: ${codigoMFA}`);
         try {
             await transporter.sendMail({
                 from: '"Seguridad Cruz Azul" <pilar.a2a0@gmail.com>',
-                to: 'pilar.a2a0@gmail.com', // A dónde quieres que llegue el código
+                to: 'pilar.a2a0@gmail.com',
                 subject: 'Tu código de acceso MFA - Cruz Azul',
-                html: `<h3>Acceso Administrativo</h3><p>Tu código de seguridad es: <b>${codigoMFA}</b></p><p>Válido por 5 minutos.</p>`
+                html: `<h3>Acceso Administrativo</h3><p>Tu código de seguridad es: <b>${codigoMFA}</b></p>`
             });
             res.json({ mensaje: 'Código enviado al correo' });
         } catch (error) {
             console.error('Error al enviar correo:', error);
-            res.status(500).json({ error: 'Error al enviar el correo, pero revisa la consola (logs) para ver el código.' });
+            res.status(500).json({ error: 'Error al enviar correo' });
         }
     } else {
         res.status(401).json({ error: 'Credenciales inválidas' });
     }
 });
 
-// Paso 2: Validar PIN y entregar el Token
 app.post('/login-step2', (req, res) => {
     const { username, mfa } = req.body;
-    
     if (mfaStore[username] && mfaStore[username] === mfa) {
-        delete mfaStore[username]; // Borramos el código por seguridad
+        delete mfaStore[username];
         const token = jwt.sign({ user: username }, SECRET_KEY, { expiresIn: '1h' });
         res.json({ token: token });
     } else {
@@ -90,20 +94,27 @@ const verificarToken = (req, res, next) => {
 // RUTAS CRUD
 // ==========================================
 app.get('/productos', verificarToken, async (req, res) => {
-    const result = await pool.query('SELECT * FROM productos ORDER BY id ASC');
-    res.json(result.rows);
+    try {
+        const result = await pool.query('SELECT * FROM productos ORDER BY id ASC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/productos', verificarToken, async (req, res) => {
     const { nombre, precio, stock } = req.body;
-    const result = await pool.query(
-        'INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *',
-        [nombre, precio, stock]
-    );
-    res.status(201).json(result.rows[0]);
+    try {
+        const result = await pool.query(
+            'INSERT INTO productos (nombre, precio, stock) VALUES ($1, $2, $3) RETURNING *',
+            [nombre, precio, stock]
+        );
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-// <-- NUEVO: EDITAR PRODUCTOS
 app.put('/productos/:id', verificarToken, async (req, res) => {
     const { id } = req.params;
     const { nombre, precio, stock } = req.body;
@@ -112,16 +123,19 @@ app.put('/productos/:id', verificarToken, async (req, res) => {
             'UPDATE productos SET nombre = $1, precio = $2, stock = $3 WHERE id = $4',
             [nombre, precio, stock, id]
         );
-        res.json({ mensaje: 'Producto actualizado con éxito' });
+        res.json({ mensaje: 'Producto actualizado' });
     } catch (err) {
-        res.status(500).send('Error al actualizar');
+        res.status(500).json({ error: err.message });
     }
 });
 
 app.delete('/productos/:id', verificarToken, async (req, res) => {
-    const { id } = req.params;
-    await pool.query('DELETE FROM productos WHERE id = $1', [id]);
-    res.status(204).send();
+    try {
+        await pool.query('DELETE FROM productos WHERE id = $1', [req.params.id]);
+        res.status(204).send();
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.listen(port, () => console.log(`Servidor corriendo en el puerto ${port}`));
