@@ -3,15 +3,19 @@ version: '3.8'
 services:
   app:
     container_name: cruz_azul_app
-    build: 
+    build:
       context: ./app
     ports:
       - "3000:3000"
     volumes:
       - ./app:/usr/src/app
+    # env_file carga automáticamente todo lo que esté en tu .env
+    env_file:
+      - .env
+    # environment ahora usa el formato de diccionario para pasar las variables
     environment:
-      - DB_HOST=${DB_HOST}
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
+      DB_HOST: ${DB_HOST}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
     restart: always
