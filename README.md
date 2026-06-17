@@ -31,3 +31,18 @@ DB_HOST=tu_endpoint_rds
 DB_USER=tu_usuario
 DB_PASSWORD=tu_contraseña
 DB_NAME=nombre_bd
+
+## 6. Para iniciar los servicios:
+
+```Bash
+sudo docker-compose up -d --build
+
+## 7. Mantenimiento y Respaldos
+El sistema cuenta con respaldo diario automatizado. Para ejecutar manualmente el respaldo:
+
+```Bash
+bash backup_db.sh
+
+
+
+
