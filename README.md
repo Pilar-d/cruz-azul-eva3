@@ -1,41 +1,33 @@
-# ERP Farmacias Cruz Azul (PoC) - Documentación Técnica
+# Proyecto ERP: Modernización Farmacias Cruz Azul
 
-Este repositorio contiene la arquitectura, código y guías de despliegue para la modernización de la plataforma ERP de **Farmacias Cruz Azul**, 
-migrando de una infraestructura local a un ecosistema seguro en la nube (AWS).
+## 1. Descripción
+Este proyecto consiste en la modernización del sistema ERP de Farmacias Cruz Azul mediante una arquitectura cloud sobre **AWS**. El objetivo es migrar de un modelo CAPEX de alta inversión a un modelo OPEX eficiente, garantizando alta disponibilidad, seguridad de red y automatización de respaldos.
 
-## 1. Descripción de la Problemática y Arquitectura
-La infraestructura previa presentaba vulnerabilidades por falta de segmentación de red y no contaba con autenticación 
-MFA. Hemos rediseñado la solución bajo un **modelo de capas** (Frontend en subred pública, Base de Datos en subred privada) para minimizar
-la superficie de ataque.
+## 2. Arquitectura del Proyecto
+La solución utiliza contenedores orquestados para asegurar portabilidad y escalabilidad:
+* **Frontend/App:** Aplicación Node.js desplegada en contenedores Docker.
+* **Base de Datos:** AWS RDS (PostgreSQL v18.3) con acceso segmentado.
+* **Infraestructura:** Despliegue en AWS EC2 (Ubuntu 24.04).
 
-## 2. Estructura del Proyecto
-* **Ruta requerida:** `/srv/cruz_azul-erp/`
 
-## 3. Base de Datos (PaaS)
-* **Servicio:** AWS RDS PostgreSQL.
-* **Conectividad:** Gestión mediante variables de entorno (`DB_HOST`, `DB_USER`) en el contenedor, permitiendo abstracción del endpoint RDS.
 
-## 4. Frontend y Autenticación
-* **Stack:** Node.js + Express.
-* **Seguridad:** Portal de autenticación con acceso condicional basado en **tokens JWT**. Las rutas protegidas requieren validación previa
-* del token. *
+## 3. Análisis Financiero (TCO Anual)
+Tras evaluar AWS, Azure y Oracle, se seleccionó AWS por su robustez y costo ajustado al presupuesto:
+* **Presupuesto:** 2.000 USD (1.880.000 CLP).
+* **Costo AWS:** 1.440 USD (1.353.600 CLP).
+* **Margen de Resguardo:** 560 USD (526.400 CLP), destinado a escalabilidad operativa.
 
-## 5. Estrategia de Respaldos (S3)
-* **Automatización:** Script `backup.sh` ejecutado vía `cron` (diario).
-* **Almacenamiento:** Bucket S3 con ACLs privadas. - REVISAR
+## 4. Gestión de Proyecto y Resultados
+El despliegue se completó en un ciclo de 7 días (10-17 junio 2026) bajo una metodología ágil con roles rotativos:
+* **Seguridad:** Implementación de *Security Groups* basados en referencia de ID, eliminando dependencias de IPs estáticas.
+* **Automatización:** Se integró el script `backup_db.sh` para respaldos diarios automatizados hacia un bucket S3 privado, asegurando la integridad de los datos.
 
-## 6. Despliegue y Gestión del Stack
-* **Construcción:** `docker-compose build`
-* **Despliegue:** `docker-compose up -d`
-* **Verificación:** `docker ps` para contenedores y `docker logs cruz_azul_app` para auditoría de conexión.
-* **Detención:** `docker-compose down` para una limpieza segura de recursos.
+## 5. Instrucciones de Despliegue
+Para levantar el entorno, asegúrese de tener configuradas las variables de entorno en el archivo `.env`:
 
-## 7. Seguridad de Red (Security Groups)
-* **EC2:** Puertos 80/443 abiertos únicamente para el balanceador/cliente.
-* **RDS:** Regla `Ingress` limitada exclusivamente al Security Group del Frontend (Puerto 5432).
-
-## 8. Ventajas Cloud (Well-Architected Framework)
-1. **Fiabilidad:** Servicios gestionados (RDS) reducen fallos operativos.
-2. **Seguridad:** Aislamiento de redes y gestión de identidades (IAM).
-3. **Escalabilidad:** Capacidad de ajustar recursos según demanda sin hardware físico.
-
+```bash
+# Variables necesarias
+DB_HOST=tu_endpoint_rds
+DB_USER=tu_usuario
+DB_PASSWORD=tu_contraseña
+DB_NAME=nombre_bd
